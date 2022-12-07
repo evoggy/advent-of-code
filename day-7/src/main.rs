@@ -1,15 +1,8 @@
 use std::fs;
 use std::process;
-use regex::Regex;
-
-struct Dir {
-  name: String,
-  size: usize
-}
-
 use std::collections::HashMap;
 
-fn calculate_size_of_files(path_to_data : &str) -> u64 {
+fn get_dir_map(path_to_data : &str) -> HashMap<String, u64> {
   let contents = fs::read_to_string(path_to_data).unwrap_or_else(| err | {
     println!("Cannot file file!: {:?}", err);
     process::exit(1);
@@ -25,22 +18,15 @@ fn calculate_size_of_files(path_to_data : &str) -> u64 {
         stack.pop();
       },
       (Some("$"), Some("cd"), Some(dir)) => {
-        if dirs.contains_key(dir) {
-          println!("{} already exists", dir);
-          panic!();
-        }
-
+        // Add the new dir to the stack and to the dir map
         stack.push(dir);
-        let path = stack.join("");
-
-        dirs.insert(path, 0);
-        
+        dirs.insert(stack.join(""), 0);        
       },
-      (Some("$"), Some(cmd), None) => {
-        println!("$ {}", cmd);
+      (Some("$"), Some(_), None) => {
+        // Do not care about value, but match this
       },
       (Some("dir"), Some(_), None) => {
-        // Do not care
+        // Do not care about value, but match this
       },
       (Some(size_string), Some(_), None) => {
         let size:u64 = size_string.parse().unwrap();
@@ -49,124 +35,54 @@ fn calculate_size_of_files(path_to_data : &str) -> u64 {
 
         for l in &stack {
           path.push_str(l);
-          println!("{} gets {}", path,size);
-          let path2 = path.clone();
-          let path3 = path.clone();
-          let prev = dirs.get(&path2).unwrap();
-          dirs.insert(path3, size + prev);
+          dirs.insert(path.clone(), size + dirs[&path]);
         }
       },
-      (_,_,_) => println!("Unknown command"),
+      (_,_,_) => unreachable!(),
     }
   }
 
-  println!("---------------");
-
-  let mut s:u64 = 0;
-
-  for (k, v) in &dirs {
-    println!("{}: {}", k, v);
-    if v <= &100000 {
-      s += v;
-    }
-  }
-
-  dbg!(s);
-
-  return s;
+  return dirs;
 }
 
+fn calculate_size_of_files(path_to_data : &str) -> u64 {
+  let dirs = get_dir_map(path_to_data);
 
-fn calculate_size_to_delete(path_to_data : &str) -> i64 {
-  let contents = fs::read_to_string(path_to_data).unwrap_or_else(| err | {
-    println!("Cannot file file!: {:?}", err);
-    process::exit(1);
-  });
+  let size = dirs.into_iter().filter(|(_, v)| *v <= 100000).map(|(_, v)| v).sum();
 
-  let mut dirs = HashMap::new();
-  let mut stack:Vec<&str> = Vec::new();
+  return size;
+}
 
-  for line in contents.lines() {
-    let mut parts = line.split(" ");
-    match (parts.next(), parts.next(), parts.next()) {
-      (Some("$"), Some("cd"), Some("..")) => {
-        stack.pop();
-      },
-      (Some("$"), Some("cd"), Some(dir)) => {
-        if dirs.contains_key(dir) {
-          println!("{} already exists", dir);
-          panic!();
-        }
+fn calculate_size_to_delete(path_to_data : &str) -> u64 {
+  let dirs = get_dir_map(path_to_data);
 
-        stack.push(dir);
-        let path = stack.join("");
-
-        dirs.insert(path, 0);
-        
-      },
-      (Some("$"), Some(cmd), None) => {
-        println!("$ {}", cmd);
-      },
-      (Some("dir"), Some(_), None) => {
-        // Do not care
-      },
-      (Some(size_string), Some(_), None) => {
-        let size:i64 = size_string.parse().unwrap();
-
-        let mut path = String::new();
-
-        for l in &stack {
-          path.push_str(l);
-          println!("{} gets {}", path,size);
-          let path2 = path.clone();
-          let path3 = path.clone();
-          let prev = dirs.get(&path2).unwrap();
-          dirs.insert(path3, size + prev);
-        }
-      },
-      (_,_,_) => println!("Unknown command"),
-    }
-  }
-
-  println!("---------------");
-
-  let size_to_free:i64 = 70000000 - dirs["/"];
-
-  println!("Size to free: {}", size_to_free);
+  let min_delete_size = 30000000 - (70000000 - dirs["/"]);
 
   let mut smallest_size = 70000000;
   let mut smallest_path = String::new();
 
   for (k, v) in &dirs {
-    println!("{}: {}", k, v);
-    if v < &smallest_size && v >= &size_to_free {
+    if v < &smallest_size && v >= &min_delete_size {
       smallest_size = *v;
-      //println!("{}", smallest_size);
       smallest_path = k.clone();
     }
   }
-  
-  let node_size = dirs[&smallest_path];
 
-  println!("{}::{}", smallest_path, node_size);
-
-
-
-  return node_size;
+  return dirs[&smallest_path];
 }
 
 fn main() {
-  let order = calculate_size_of_files("test.txt");
-  assert!(order == 95437, "9000: The test tops is not correct!");
+  let size = calculate_size_of_files("test.txt");
+  assert!(size == 95437, "The test dir size is not correct!");
 
-  let order = calculate_size_of_files("data.txt");
-  println!("9000: The top crates are (in order): {}", order);
-  //assert!(order == "WSFTMRHPP", "9000: The test tops is not correct!");
+  let size = calculate_size_of_files("data.txt");
+  println!("Sum of all dirs below 100k: {}", size);
+  assert!(size == 1315285, "The data dir size is not correct!");
 
-  let order = calculate_size_to_delete("test.txt");
-  assert!(order == 24933642, "9001: The test tops is not correct!");
+  let size = calculate_size_to_delete("test.txt");
+  assert!(size == 24933642, "The test dir size is not correct!");
 
-  let order = calculate_size_to_delete("data.txt");
-  println!("9001: The top crates are (in order): {}", order);
-  //assert!(order == "GSLCMFBRP", "9001: The test tops is not correct!");
+  let size = calculate_size_to_delete("data.txt");
+  println!("Size of directory to delete: {}", size);
+  assert!(size == 9847279, "The data dir size is not correct!");
 }
