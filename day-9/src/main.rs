@@ -1,7 +1,7 @@
 use std::fs;
 use std::process;
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Copy)]
 struct Position {
   x: i32,
   y: i32,
@@ -9,7 +9,6 @@ struct Position {
 
 impl Position {
   fn boarders(&self, other: &Self) -> bool {
-    println!("{}, {}", (self.x - other.x).abs(), (self.y - other.y).abs());  
     return (self.x - other.x).abs() <= 1 && (self.y - other.y).abs() <= 1;
   }
 
@@ -23,13 +22,17 @@ impl Position {
 
   // Assume that we need to move to follow (we already checked this)
   fn follow(&mut self, head: &Self) {
-    println!("Eval follow: {:?} -> {:?}", head, self);
+    //println!("Eval follow: {:?} -> {:?}", head, self);
 
     if self.is_in_same_column(&head) || self.is_in_same_row(&head) {
       self.y += (head.y-self.y)/2;
       self.x += (head.x - self.x)/2;
     } else {
-      if (self.x - head.x).abs() == 2 {
+      //println!("Diag {}, {}", head.y-self.y, head.x-self.x);
+      if (self.x - head.x).abs() == 2 && (self.y - head.y).abs() == 2 {
+        self.y += (head.y-self.y)/2;
+        self.x += (head.x - self.x)/2;
+      } else if (self.x - head.x).abs() == 2 {
         self.y += head.y-self.y;
         self.x += (head.x - self.x)/2;    
       } else {
@@ -70,7 +73,7 @@ impl Move {
   }
 }
 
-fn calculate_tail_visits(path_to_data : &str) -> u32 {
+fn calculate_tail_visits(path_to_data : &str, nbr_of_knots: usize) -> u32 {
   //let moves = get_moves(path_to_data);
 
   let contents = fs::read_to_string(path_to_data).unwrap_or_else(| err | {
@@ -82,35 +85,37 @@ fn calculate_tail_visits(path_to_data : &str) -> u32 {
 
   let mut visited:Vec<Position> = Vec::new();
 
-  // Start in (0, 0), positive axis is right and up
-  let mut head = Position { x: 0, y: 0 };
-  let mut tail = Position { x: 0, y: 0 };
+  let mut knots:Vec<Position> = Vec::new();
+  for _i in 0..nbr_of_knots {
+    knots.push(Position { x: 0, y: 0 });
+  }
 
-  visited.push(tail.clone());
+  visited.push(Position { x: 0, y: 0 });
 
   for m in moves.iter() {
 
-    println!("Move {:?} from {:?}", m.direction, head);
-
-    for step in 0..m.distance {
+    
+    for _step in 0..m.distance {
       match &m.direction {
-        Direction::Up => head.y += 1,
-        Direction::Down => head.y -= 1,
-        Direction::Right => head.x += 1,
-        Direction::Left => head.x -= 1,
+        Direction::Up => knots[0].y += 1,
+        Direction::Down => knots[0].y -= 1,
+        Direction::Right => knots[0].x += 1,
+        Direction::Left => knots[0].x -= 1,
       }
 
-      if !tail.boarders(&head) {
-        tail.follow(&head);
-      } else {
-        //println!("Still close to the head!");
-      }
-      println!("Head: {:?}, Tail: {:?}", head, tail);
-      println!("---------");
-
-      if !visited.contains(&tail) {
-        visited.push(tail.clone());
-      }
+      for i in 0..knots.len() {
+        // Do not move head here
+        if i > 0 {
+          let previous = knots[i-1];
+          if !knots[i].boarders(&previous) {
+            knots[i].follow(&previous);
+          }
+        }
+        
+        if !visited.contains(&knots[i]) && i == nbr_of_knots - 1 {
+          visited.push(knots[i].clone());
+        }
+      } 
     }
   }
 
@@ -119,17 +124,20 @@ fn calculate_tail_visits(path_to_data : &str) -> u32 {
 
 
 fn main() {
-  let pos = calculate_tail_visits("test.txt");
+  let pos = calculate_tail_visits("test.txt", 2);
   assert!(pos == 13, "The number of positions the tail visited is not correct");
 
-  let pos = calculate_tail_visits("data.txt");
+  let pos = calculate_tail_visits("data.txt", 2);
   println!("The number of positions the tail visited is: {}", pos);
   assert!(pos == 6376, "The number of positions the tail visited is not correct");
+  
+  let pos = calculate_tail_visits("test.txt", 10);
+  assert!(pos == 1, "Short tail wrong");
 
-  /*let size = calculate_max_scenic_score("test.txt");
-  assert!(size == 8, "The test scenic score is not correct!");
+  let pos = calculate_tail_visits("test-large.txt", 10);
+  assert!(pos == 36, "Large tail wrong");
 
-  let size = calculate_max_scenic_score("data.txt");
-  println!("Max scenic score is: {}", size);
-  assert!(size == 211680, "The data scenic score is not correct!");*/
+  let pos = calculate_tail_visits("data.txt", 10);
+  println!("The number of positions the tail visited is: {}", pos);
+  assert!(pos == 2607, "Real tail wrong");
 }
