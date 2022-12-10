@@ -12,33 +12,18 @@ impl Position {
     return (self.x - other.x).abs() <= 1 && (self.y - other.y).abs() <= 1;
   }
 
-  fn is_in_same_column(&self, other: &Self) -> bool {
-    return self.y == other.y;
-  }
-
-  fn is_in_same_row(&self, other: &Self) -> bool {
-    return self.x == other.x;
-  }
-
-  // Assume that we need to move to follow (we already checked this)
   fn follow(&mut self, head: &Self) {
-    //println!("Eval follow: {:?} -> {:?}", head, self);
 
-    if self.is_in_same_column(&head) || self.is_in_same_row(&head) {
-      self.y += (head.y-self.y)/2;
-      self.x += (head.x - self.x)/2;
-    } else {
-      //println!("Diag {}, {}", head.y-self.y, head.x-self.x);
-      if (self.x - head.x).abs() == 2 && (self.y - head.y).abs() == 2 {
-        self.y += (head.y-self.y)/2;
-        self.x += (head.x - self.x)/2;
-      } else if (self.x - head.x).abs() == 2 {
-        self.y += head.y-self.y;
-        self.x += (head.x - self.x)/2;    
-      } else {
-        self.y += (head.y-self.y)/2;
-        self.x += head.x - self.x;
-      }
+    if self.x > head.x {
+      self.x -= 1;
+    } else if self.x < head.x{
+      self.x += 1;
+    }
+   
+    if self.y > head.y {
+      self.y -= 1;
+    } else if self.y < head.y {
+      self.y += 1;
     }
   }
 }
@@ -74,8 +59,6 @@ impl Move {
 }
 
 fn calculate_tail_visits(path_to_data : &str, nbr_of_knots: usize) -> u32 {
-  //let moves = get_moves(path_to_data);
-
   let contents = fs::read_to_string(path_to_data).unwrap_or_else(| err | {
     println!("Cannot file file!: {:?}", err);
     process::exit(1);
@@ -92,10 +75,8 @@ fn calculate_tail_visits(path_to_data : &str, nbr_of_knots: usize) -> u32 {
 
   visited.push(Position { x: 0, y: 0 });
 
-  for m in moves.iter() {
-
-    
-    for _step in 0..m.distance {
+  for m in moves.iter() { 
+    for _ in 0..m.distance {
       match &m.direction {
         Direction::Up => knots[0].y += 1,
         Direction::Down => knots[0].y -= 1,
